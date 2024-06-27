@@ -5,6 +5,7 @@ const debounce = require('lodash.debounce');
 const Epoll = require('epoll').Epoll;
 
 const GPIO_ROOT_PATH = '/sys/class/gpio/';
+const GPIO_CHIP_REGEXP = /gpiochip([0-9]+)/;
 
 const HIGH_BUF = Buffer.from('1');
 const LOW_BUF = Buffer.from('0');
@@ -153,6 +154,20 @@ const configureInterruptHandler = gpio => {
   }
 };
 
+const getGpioBaseAddress = () => {
+  const gpioFileNames = fs.readdirSync(GPIO_ROOT_PATH);
+
+  const gpioChipName = gpioFileNames.find((fileName) => GPIO_CHIP_REGEXP.test(fileName));
+
+  if (!gpioChipName) {
+    return 0;
+  }
+
+  const [, baseAddress] = gpioChipName.match(GPIO_CHIP_REGEXP);
+
+  return parseInt(baseAddress);
+};
+
 class Gpio {
   constructor(gpio, direction, edge, options) {
     if (typeof edge === 'object' && !options) {
@@ -162,7 +177,8 @@ class Gpio {
 
     options = options || {};
 
-    this._gpio = gpio;
+    this._baseAddress = getGpioBaseAddress();
+    this._gpio = this._baseAddress + gpio;
     this._gpioPath = GPIO_ROOT_PATH + 'gpio' + this._gpio + '/';
     this._debounceTimeout = options.debounceTimeout || 0;
     this._readBuffer = Buffer.alloc(16);
